@@ -21,4 +21,4 @@
 	url = https://github.com/apangin/jattach.git
 [submodule "thirdparty/kissmalloc"]
 	path = thirdparty/kissmalloc
-	url = https://gitlab.com/frankencode/kissmalloc.git
+	url = https://github.com/frankencode/kissmalloc
