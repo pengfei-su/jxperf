@@ -30,9 +30,8 @@ private:
 
 
 typedef struct {
-    int64_t i = 0; // precise redundant bytes
-    int64_t r = 0; // approximate redundant bytes
-
+    int64_t i = 0; 
+    double  r = 0;
 } metric_val_t;
 
 inline metric_val_t operator+(const metric_val_t &v1, const metric_val_t &v2){
@@ -51,6 +50,7 @@ inline metric_val_t &operator+=(metric_val_t &v1, const metric_val_t &v2){
 class ContextMetrics {
 public:
     bool increment(int metric_idx, const metric_val_t &val);
+    bool setMetricVal(int metric_idx, const metric_val_t &val);
     metric_val_t *getMetricVal(int metric_idx);
 private:
     std::vector<metric_val_t> _val_list;

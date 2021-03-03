@@ -12,7 +12,7 @@
 
 class JVM {
   public:
-    static bool init(JavaVM* jvm, const char *arg, bool attach);
+    static bool init(JavaVM* jvm, const char *arg);
     static bool shutdown();
     static void loadMethodIDs(jvmtiEnv* jvmti, jclass klass);
     static void loadAllMethodIDs(jvmtiEnv* jvmti);

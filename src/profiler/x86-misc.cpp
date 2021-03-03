@@ -387,12 +387,12 @@ void *get_previous_instruction(const void *method_start_addr, const void *method
 }
 
 
-#if defined(PRINT_METHOD_INS) | defined(PRINT_PMU_INS) 
+#if defined(PRINT_METHOD_INS) || defined(PRINT_SAMPLED_INS) || defined(PRINT_TRAPPED_INS)
 #include <iostream>
 #include <fstream>
 #endif
 
-#ifdef PRINT_PMU_INS
+#if defined(PRINT_SAMPLED_INS) || defined(PRINT_TRAPPED_INS)
 void print_single_instruction(std::ofstream *inst_file, const void *ins) {
     xed_decoded_inst_t xedd;
     xed_decoded_inst_t *xptr = &xedd;

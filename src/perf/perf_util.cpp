@@ -5,7 +5,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <err.h>
-
 #include <assert.h>
 #include <perfmon/pfmlib_perf_event.h>
 #include "perf_util.h"
@@ -35,18 +34,17 @@ bool perf_attr_init(struct perf_event_attr *attr, uint64_t threshold, uint64_t m
     sample_type |= PERF_SAMPLE_CALLCHAIN;
     sample_type |= PERF_SAMPLE_ADDR;
     sample_type |= PERF_SAMPLE_CPU;
+    sample_type |= PERF_SAMPLE_PERIOD;
+    sample_type |= PERF_SAMPLE_TIME;
 
     attr->sample_type = sample_type;
     attr->size   = sizeof(struct perf_event_attr); /* Size of attribute structure */
-    // attr->sample_max_stack = PERF_MAX_STACK_DEPTH; // libpfm 4.8 does not support it
-    attr->exclude_callchain_kernel = 1;
-    attr->freq   = 0;
     attr->sample_period = threshold;
-    if (threshold == 0){
-        attr->read_format = PERF_FORMAT_TOTAL_TIME_ENABLED|PERF_FORMAT_TOTAL_TIME_RUNNING;
-    }
-    else {
-        attr->read_format = 0;
+    if (threshold == 0) {
+    	attr->freq = 1;
+        // attr->read_format = PERF_FORMAT_TOTAL_TIME_ENABLED|PERF_FORMAT_TOTAL_TIME_RUNNING;
+    } else {
+    	attr->freq = 0;
     }
     attr->disabled = 1; /* the counter will be enabled later  */
     attr->wakeup_events = 1; /* overflow notifications happen after wakeup_events samples */ 
@@ -75,4 +73,24 @@ bool perf_read_event_counter(int fd, uint64_t *val){
         return false;
     }
     return true;
+}
+
+/*
+ * get int value of variable environment.
+ * If the variable is not set, return the default value 
+ */
+int get_env_int(const char *env_var)
+{
+  const char *str_val= getenv(env_var);
+  
+  if (str_val) {
+    char *end_ptr;
+    int val = int(strtol(str_val, &end_ptr, 10));
+
+    if (end_ptr != env_var && (val <=3 && val >= 0)) return val;
+    else if (end_ptr != env_var && val <0) return 0;
+    else if (end_ptr != env_var && val > 3) return 3;
+  }
+  
+  return 0;
 }

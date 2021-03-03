@@ -23,3 +23,8 @@ void* getContextPC(void* uCtxt) {
   mcontext_t *mc = GET_MCONTEXT(uCtxt);
   return MCONTEXT_PC(mc);
 }
+
+void* getContextSP(void* uCtxt) {
+  mcontext_t *mc = GET_MCONTEXT(uCtxt);
+  return MCONTEXT_SP(mc);
+}

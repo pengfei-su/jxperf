@@ -7,7 +7,7 @@ bool get_mem_access_length_and_type_address(void * ip, uint32_t *accessLen, Acce
 bool get_mem_access_length_and_type(void * ip, uint32_t *accessLen, AccessType *accessType);
 // void decode_method(const void *method_start_addr, const void *method_end_addr, const void * first_pc);
 void *get_previous_instruction(const void *method_start_addr, const void *method_end_addr, const void *ins, void *excludeList[], int numExcludes);
-#ifdef PRINT_PMU_INS
+#if defined(PRINT_SAMPLED_INS) || defined(PRINT_TRAPPED_INS)
 void print_single_instruction(std::ofstream *inst_file, const void *ins);
 #endif
 #ifdef PRINT_METHOD_INS

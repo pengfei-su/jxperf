@@ -37,20 +37,19 @@ thread_data_t *thread_data_get() {
     return ret;
 } 
 
-void thread_data_dealloc(std::string clientName) {
+void thread_data_dealloc() {
     thread_data_t *td_ptr = (thread_data_t*) pthread_getspecific(key);
     if (td_ptr != nullptr) {
         // make sure each field is properly freed
-        if (clientName.compare(GENERIC) != 0 && clientName.compare(HEAP) != 0)
-            assert(td_ptr->perf_state == nullptr);
+        assert(td_ptr->perf_state == nullptr);
         assert(td_ptr->context_state == nullptr);
 #ifndef COUNT_OVERHEAD 
         assert(td_ptr->output_state == nullptr);
 #endif
-#ifdef PRINT_PMU_INS
+#if defined(PRINT_SAMPLED_INS) || defined(PRINT_TRAPPED_INS)
         assert(td_ptr->pmu_ins_output_stream == nullptr);
 #endif
-        for (int i =0; i < 4; i++) assert(td_ptr->ctxt_sample_state[i] == nullptr);
+        // for (int i =0; i < 4; i++) assert(td_ptr->ctxt_sample_state[i] == nullptr);
         delete td_ptr;
         td_ptr = nullptr;
         pthread_setspecific(key, nullptr);

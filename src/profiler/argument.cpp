@@ -30,11 +30,9 @@ Argument::Argument(const char *arg) {
   std::vector<std::string> tokens;
   std::string str = arg;
   Tokenize(str, tokens, ",");
-  /*
-  for(auto &elem : tokens){
+  /*for(auto &elem : tokens){
     std::cout << elem << std::endl;
-  }
-  */
+  }*/
   _perf_event_list = tokens;
 }
 

@@ -11,9 +11,10 @@
 #define NUMANODE_CLIENT_NAME "NUMA"
 #define GENERIC "GENERIC"
 #define HEAP "HEAP"
+#define VARIANCE_CLIENT_NAME "VARIANCE"
 
 #define MAX_WP_LENGTH (8L)
-#define NUM_WATERMARK_METRICS (4)
+// #define NUM_WATERMARK_METRICS (11)
 #define MIN(x, y) (((x) < (y)) ? (x) : (y))
 #define GET_OVERLAP_BYTES(a, a_len, b, b_len) ((a) >= (b)? MIN(a_len, (int64_t)(b_len) - ((int64_t)(a) - (int64_t)(b))) : MIN(b_len, (int64_t)(a_len) - ((int64_t)(b) - (int64_t)(a))))
 #define ADDRESSES_OVERLAP(addr1, len1, addr2, len2) (((int64_t)(addr1)+(len1) > (int64_t)(addr2)) && ((int64_t)(addr2) + (len2) > (int64_t)(addr1)))
@@ -30,14 +31,28 @@ typedef struct SampleNum {
     uint64_t cur_num;
 } SampleNum_t;
 
+/*
+typedef struct SampleData {
+    void * va; 
+    int watchLen;
+    WP_Access_t watchType;
+    int accessLen;
+    void watchCtxt;
+    int metric_sample_cnt_id;
+    int metric_mean_id;
+    int metric_variance_id;
+    int metric_m2_id;
+    int metric_cv_id;
+}SampleData_t;
+*/
 
+void SetupWatermarkMetric(std::string client_name, std::string event_name, int event_threshold);
 void GetActiveWatchPoints(WP_TriggerInfo_t wpt[], int *numActiveWPs);
 void *GetPatchedIP(const void *method_start_addr, const void *method_end_addr, void *ip);
 bool IsPCSane(void *ip, void *patchedIP);
 int GetFloorWPLength(int accessLen);
 int GetFloorWPLengthAtAddress(void *address, int accessLen);
 // double ProportionOfWatchpointAmongOthersSharingTheSameContext(WP_TriggerInfo_t *wpi);
-extern void SetupWatermarkMetric(int metricId);
 int GetMatchingCtxtSampleTableId(int pebsMetricId);
 void UpdateNumSamples(Context *ctxt, int pebsMetricId);
 uint64_t GetNumDiffSamplesAndReset(Context *ctxt, int pebsMetricId, double prop, uint32_t threshold);

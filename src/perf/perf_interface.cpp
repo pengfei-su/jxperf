@@ -17,6 +17,7 @@
 #include <new>
 #include <fstream>
 #include <boost/algorithm/string.hpp>
+#include <iostream>
 
 #include "perf_interface.h"
 #include <perfmon/pfmlib_perf_event.h>
@@ -30,14 +31,13 @@
 #include "profiler_support.h"
 #include "safe-sampling.h"
 
+// #include <iostream>
+
 #define PERF_SIGNAL (SIGRTMIN+4)
 #define MAX_NUM_EVENTS 10 // not the theoretical maximum
 
 typedef struct {
     int id;
-    int metric_id1;
-    int metric_id2;
-    int metric_id3;
     std::string name;
     uint32_t threshold;
     struct perf_event_attr attr;
@@ -104,37 +104,42 @@ bool installSignal(void (*sig_handler)(int, siginfo_t *, void *) ){
   return true;
 }
 
-
 bool process_event_list(const std::vector<std::string> &event_list){
     num_events = event_list.size();
     assert(num_events <= MAX_NUM_EVENTS); // We have a limit as to the number of events
 
-    for(uint32_t i=0; i < num_events; i++ ){
+    int precise_ip = get_env_int("PRECISE_IP");	
+    std::string client_name;
+
+    for(uint32_t i = 0; i < num_events; i++ ) {
         perf_event_info_t &current_event_info = event_info[i];
         const std::string &event = event_list[i];
-        //find the client name, event name and the period
+	//find the client name, event name and the period
         std::size_t pos = event.find("::");
-        // if(pos == std::string::npos) { // not found
-        //     ERROR("Can't get client name");
-        //     assert(false);
-        // }
-        std::string client_name = event.substr(0, pos);
+        if(pos == std::string::npos) { // not found
+	    if (client_name.empty()) {
+            	ERROR("Can't get client name");
+            	assert(false);
+	    } else pos = 0;
+        } else {
+            client_name = event.substr(0, pos);
 	    boost::to_upper(client_name);
+	    pos += 2;
+	}
 
         std::size_t pos2 = event.find("@");
-        if(pos2 != std::string::npos) { // found "@"
-            current_event_info.name = event.substr(pos+2, pos2-pos-2);
-            std::string sample_rate_str = event.substr(pos2+1, std::string::npos);
+        if (pos2 != std::string::npos) { // found "@"
+            current_event_info.name = event.substr(pos, pos2 - pos);
+            std::string sample_rate_str = event.substr(pos2 + 1, std::string::npos);
             current_event_info.threshold = std::stoull(sample_rate_str, nullptr, 10);
-            std::string sample_precise_level = event.substr(pos2-1, 1);
-            current_event_info.attr.precise_ip = std::stoull(sample_precise_level, nullptr, 10);
         } else {
-            current_event_info.name = event;
-            current_event_info.attr.precise_ip = 3;
-            current_event_info.threshold = 0;
+            current_event_info.name = event.substr(pos, pos2);
         }
-        INFO("client name = %s event name = %s rate = %u\n", client_name.c_str(), current_event_info.name.c_str(),  current_event_info.threshold);
-
+        if (current_event_info.threshold != 0) current_event_info.attr.precise_ip = precise_ip;
+       
+	INFO("client name = %s event name = %s rate = %u\n", client_name.c_str(), current_event_info.name.c_str(),  current_event_info.threshold);
+	std::cout<< client_name << " " << current_event_info.name << " " << current_event_info.threshold << std::endl;
+	
         // encode the event
         if (!perf_encode_event(current_event_info.name, &(current_event_info.attr))){
             ERROR("Can't encode %s", current_event_info.name.c_str());
@@ -145,22 +150,52 @@ bool process_event_list(const std::vector<std::string> &event_list){
             ERROR("Can't init attribute for event %s", current_event_info.name.c_str());
             assert(false);
         }
+	
+	/*
+        metrics::metric_info_t metric_sample_cnt_info;
+        metric_sample_cnt_info.client_name = client_name;
+        metric_sample_cnt_info.name = current_event_info.name;
+        metric_sample_cnt_info.threshold = current_event_info.threshold;
+        metric_sample_info.val_type = metrics::METRIC_VAL_INT;
+        current_event_info.metric_sample_cnt_id = metrics::MetricInfoManager::registerMetric(metric_sample_cnt_info);
 
-        //create the corresponding metric
-        metrics::metric_info_t metric_info;
-        metric_info.client_name = client_name;
-        metric_info.name = current_event_info.name;
-        metric_info.threshold = current_event_info.threshold;
-        metric_info.val_type = metrics::METRIC_VAL_INT;
-        current_event_info.metric_id1 = metrics::MetricInfoManager::registerMetric(metric_info);
-        current_event_info.metric_id2 = metrics::MetricInfoManager::registerMetric(metric_info);
-        current_event_info.metric_id3 = metrics::MetricInfoManager::registerMetric(metric_info);
+        metrics::metric_info_t metric_mean_info;
+        metric_mean_info.client_name = client_name;
+        metric_mean_info.name = current_event_info.name;
+        metric_mean_info.threshold = current_event_info.threshold;
+        metric_mean_info.val_type = metrics::METRIC_VAL_REAL;
+        current_event_info.metric_mean_id = metrics::MetricInfoManager::registerMetric(metric_mean_info);
         
-        // extern void SetupWatermarkMetric(int);
-        // Watchpoint
-        SetupWatermarkMetric(current_event_info.metric_id1);
-        SetupWatermarkMetric(current_event_info.metric_id2);
-        SetupWatermarkMetric(current_event_info.metric_id3);
+        metrics::metric_info_t metric_variance_info;
+        metric_variance_info.client_name = client_name;
+        metric_variance_info.name = current_event_info.name;
+        metric_variance_info.threshold = current_event_info.threshold;
+        metric_variance_info.val_type = metrics::METRIC_VAL_REAL;
+        current_event_info.metric_variance_id = metrics::MetricInfoManager::registerMetric(metric_variance_info);
+	
+        metrics::metric_info_t metric_m2_info;
+        metric_m2_info.client_name = client_name;
+        metric_m2_info.name = current_event_info.name;
+        metric_m2_info.threshold = current_event_info.threshold;
+        metric_m2_info.val_type = metrics::METRIC_VAL_REAL;
+        current_event_info.metric_m2_id = metrics::MetricInfoManager::registerMetric(metric_m2_info);
+	
+        metrics::metric_info_t metric_cv_info;
+        metric_cv_info.client_name = client_name;
+        metric_cv_info.name = current_event_info.name;
+        metric_cv_info.threshold = current_event_info.threshold;
+        metric_cv_info.val_type = metrics::METRIC_VAL_REAL;
+        current_event_info.metric_cv_id = metrics::MetricInfoManager::registerMetric(metric_cv_info);
+        
+	SetupWatermarkMetric(current_event_info.metric_metric_sample_cnt_id);
+        SetupWatermarkMetric(current_event_info.metric_mean_id);
+        SetupWatermarkMetric(current_event_info.metric_variance_id);
+        SetupWatermarkMetric(current_event_info.metric_m2_id);
+        SetupWatermarkMetric(current_event_info.metric_cv_id);
+	*/
+        
+    	// extern void SetupWatermarkMetric(std::string, std::string, int);
+	SetupWatermarkMetric(client_name, current_event_info.name, current_event_info.threshold);
     }
     return true;
 }
@@ -222,6 +257,7 @@ bool perf_stop_all(std::vector<perf_event_thread_t> &event_thread_list){
 }
 
 void perf_event_handler(int sig, siginfo_t* siginfo, void* context){
+    // std::cout << "here\n" <<std::endl;
     // ----------------------------------------------------------------------------
     // check #0:
     // if the interrupt came while inside our code, then drop the sample
@@ -292,6 +328,7 @@ void perf_event_handler(int sig, siginfo_t* siginfo, void* context){
     assert(user_sample_cb != nullptr);
     
     int remaining_data_size;
+    int cnt = 0;
     while ((remaining_data_size = perf_num_of_remaining_data(current->mmap_buf)) > 0) {
         struct perf_event_header ehdr;
         if (remaining_data_size < (int)sizeof(ehdr)) {
@@ -302,12 +339,12 @@ void perf_event_handler(int sig, siginfo_t* siginfo, void* context){
 	if (ehdr.type == PERF_RECORD_SAMPLE) {
             perf_sample_data_t sample_data;
             memset(&sample_data, 0, sizeof(perf_sample_data_t));
-	        sample_data.isPrecise = (ehdr.misc & PERF_RECORD_MISC_EXACT_IP) ? true : false;
+	    sample_data.isPrecise = (ehdr.misc & PERF_RECORD_MISC_EXACT_IP) ? true : false;
             perf_read_record_sample(current->mmap_buf, current->event->attr.sample_type, &sample_data);
-            //if (!inside_sig_unsafe_func)
-                user_sample_cb(current->id, &sample_data, context, current->event->metric_id1, current->event->metric_id2, current->event->metric_id3);
-        }
-        else {
+            user_sample_cb(current->id, &sample_data, context);
+	    // std::cout << current->id<<std::endl;
+	    cnt++;
+        } else {
             if (ehdr.size == 0) {
                 perf_skip_all(current->mmap_buf);
             }
@@ -316,6 +353,7 @@ void perf_event_handler(int sig, siginfo_t* siginfo, void* context){
             }
         }
     }
+    assert(cnt < 2);
     
     //------------------------------------------------------------
     // Finished processing this sample.
@@ -357,17 +395,20 @@ bool PerfManager::setupEvents(){
     }
     pid_t tid = TD_GET(tid);
 
+    extern void SetupEventFd(int);
+
     for(uint32_t i = 0; i < num_events; i++) {
         perf_event_thread_t event_thread;
         event_thread.id = i;
         event_thread.fd = perf_event_open(&(event_info[i].attr), tid, -1, -1, 0);
-        if (event_thread.fd < -1){
-            ERROR("perf_event_open() failed, cannot open event %s: %s", event_thread.event->name.c_str(), strerror(errno));
+        event_thread.event = &(event_info[i]);
+        if (event_thread.fd == -1) {
+            ERROR("perf_event_open() failed, cannot open event %s: %s %d", event_thread.event->name.c_str(), strerror(errno), event_thread.id);
             return false;
         }
         ioctl(event_thread.fd,PERF_EVENT_IOC_RESET,0);
 
-        int flags = fcntl( event_thread.fd , F_GETFL, 0);
+        int flags = fcntl(event_thread.fd, F_GETFL, 0);
         if (flags < 0) {
             ERROR("fcntl(%d, F_GETFL) failed: %s", event_thread.fd, strerror(errno));
             return false;
@@ -393,12 +434,12 @@ bool PerfManager::setupEvents(){
             return false;
         }
 
-
         event_thread.mmap_buf = perf_set_mmap(event_thread.fd);
         assert(event_thread.mmap_buf);
 
-        event_thread.event = &(event_info[i]);
         event_thread_list->push_back(event_thread);
+
+	SetupEventFd(event_thread.fd);
     }
 
     perf_start_all(*event_thread_list);

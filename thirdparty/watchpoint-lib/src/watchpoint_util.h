@@ -22,7 +22,8 @@
 
 //********************MACRO*************************************/
 #define MAX_WP_LENGTH (8L)
-#define MAX_WP_SLOTS (5)
+// #define MAX_WP_SLOTS (5)
+#define MAX_WP_SLOTS (1)
 
 #define CACHE_LINE_SZ (64)
 #define ALT_STACK_SZ ((1L<<20) > 4 * SIGSTKSZ? (1L<<20): 4* SIGSTKSZ)
@@ -59,18 +60,14 @@ typedef enum VictimType {EMPTY_SLOT, NON_EMPTY_SLOT, NONE_AVAILABLE} VictimType;
 typedef enum WP_Victim_t {WP_VICTIM_EMPTY_SLOT, WP_VICTIM_NON_EMPTY_SLOT, WP_VICTIM_NONE_AVAILABLE} WP_Victim_t;
 
 typedef struct WP_RegisterInfo_t{
-    uint32_t rtnAddr;
+    SampleData_t sd;
     void *va; // access virtual address
-    int watchLen;
-    void *watchCtxt;
     int64_t startTime;
     int fileHandle;
     bool isActive;
-    void * mmapBuffer;
-    int sampleAccessLen;
     uint8_t sampleValue[MAX_WP_LENGTH]; // value
     uint64_t samplePostFull; // per watchpoint survival probability
-    int metric_id1;
+    void * mmapBuffer;
 } WP_RegisterInfo_t;
 
 typedef struct WP_ThreadData_t {
@@ -104,11 +101,11 @@ typedef struct WP_Config_t {
     WP_PerfCallback_t userPerfPause, userPerfResume;
 } WP_Config_t;
 
-
-//************************************Static Methods****************************/
-static inline pid_t gettid() {
+inline pid_t gettid() {
     return syscall(__NR_gettid);
 }
+
+//************************************Static Methods****************************/
 static inline  uint64_t rdtsc(){
     unsigned int lo,hi;
     __asm__ __volatile__ ("rdtsc" : "=a" (lo), "=d" (hi));

@@ -27,6 +27,8 @@
 bool perf_encode_event(const std::string &event, struct perf_event_attr *event_attr);
 bool perf_attr_init(struct perf_event_attr *attr, uint64_t threshold, uint64_t more_sample_type);
 bool perf_read_event_counter(int fd, uint64_t *val);
+int get_env_int(const char *env_var);
+
 
 
 /*

@@ -7,16 +7,13 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-#include <dlfcn.h>
-#include <thread>
-#include <chrono>
 
 #include "thread_data.h"
 #include "agent.h"
 #include "profiler.h"
 #include "debug.h"
 #include "safe-sampling.h"
-#include "profiler_support.h"
+#include <jvmticmlr.h>
 
 /* Used to block the interrupt from PERF */
 #define BLOCK_SAMPLE (TD_GET(inside_agent) = true) 
@@ -24,62 +21,9 @@
 /* Used to revert back to the original signal blocking setting */
 #define UNBLOCK_SAMPLE (TD_GET(inside_agent) = false)
 
-#define MAX_FRAME_NUM (128)
-
 JavaVM* JVM::_jvm = nullptr;
 jvmtiEnv* JVM::_jvmti = nullptr;
 Argument* JVM::_argument = nullptr;
-
-extern SpinLock tree_lock;
-extern interval_tree_node *splay_tree_root;
-bool jni_flag = false;
-bool onload_flag = false;
-
-namespace {
-	Context *heap_analysis_constructContext(ASGCT_FN asgct, void *context, std::string client_name, int64_t obj_size){
-    ASGCT_CallTrace trace;
-    ASGCT_CallFrame frames[MAX_FRAME_NUM];
-    
-    trace.frames = frames;
-    trace.env_id = JVM::jni();
-    
-    asgct(&trace, MAX_FRAME_NUM, context);
-    
-    ContextTree *ctxt_tree = reinterpret_cast<ContextTree *> (TD_GET(context_state));
-    if(ctxt_tree == nullptr) return nullptr;
-    
-    Context *last_ctxt = nullptr;
-        
-    for(int i=trace.num_frames - 1 ; i >= 0; i--) {
-        ContextFrame ctxt_frame;
-        ctxt_frame = frames[i]; // set method_id and bci
-        
-        if (last_ctxt == nullptr) last_ctxt = ctxt_tree->addContext((uint32_t)CONTEXT_TREE_ROOT_ID, ctxt_frame);
-        else last_ctxt = ctxt_tree->addContext(last_ctxt, ctxt_frame);
-    }
-
-    ContextFrame ctxt_frame;
-    ctxt_frame.bci = -65536;
-    if (last_ctxt == nullptr)
-        last_ctxt = ctxt_tree->addContext((uint32_t)CONTEXT_TREE_ROOT_ID, ctxt_frame);
-    else
-        last_ctxt = ctxt_tree->addContext(last_ctxt, ctxt_frame);       
-
-    if (client_name.compare(HEAP) == 0) {
-      metrics::ContextMetrics *metrics = last_ctxt->getMetrics();
-      if (metrics == nullptr) {
-        metrics = new metrics::ContextMetrics();
-        last_ctxt->setMetrics(metrics);
-      }
-        metrics::metric_val_t metric_val;
-      metric_val.i = obj_size;
-      assert(metrics->increment(1, metric_val)); 
-    }
-
-    return last_ctxt;
-}
-}
-
 
 void JVM::parseArgs(const char *arg) {
   _argument = new(std::nothrow) Argument(arg);
@@ -101,14 +45,6 @@ static void createJMethodIDsForClass(jvmtiEnv *jvmti, jclass klass) {
   }
 }
 
-// Heap usage analysis
-static void JNICALL SampledObjectAlloc(jvmtiEnv *jvmti_env, JNIEnv* jni_env, jthread thread, jobject object, jclass object_klass, jlong size) {
-  int64_t obj_size = size;
-  std::string client_name = GetClientName();
-  ucontext_t context, *cp = &context;
-  getcontext(cp);
-  Context *ctxt = heap_analysis_constructContext(Profiler::_asgct, (void*)cp, client_name, obj_size);
-}
 
 /**
 * VM init callback
@@ -123,17 +59,6 @@ static void JNICALL callbackVMInit(jvmtiEnv *jvmti, JNIEnv* jni, jthread thread)
   for (int i = 0; i < class_count; ++i) {
     jclass klass = classList[i];
     createJMethodIDsForClass(jvmti, klass);
-  }
-
-  //Call java agent register_callback
-  std::string client_name = GetClientName();
-  if (client_name.compare(DATA_CENTRIC_CLIENT_NAME) == 0 || client_name.compare(NUMANODE_CLIENT_NAME) == 0) {
-    jclass myClass = NULL;
-    jmethodID main = NULL;
-        
-    myClass = jni->FindClass("com/google/monitoring/runtime/instrumentation/AllocationInstrumenter");
-    main = jni->GetStaticMethodID(myClass, "register_callback", "([Ljava/lang/String;)V");
-    jni->CallStaticVoidMethod(myClass, main, " ");
   }
   // UNBLOCK_SAMPLE;
 }
@@ -236,22 +161,6 @@ static void JNICALL callbackCompiledMethodLoad(jvmtiEnv *jvmti_env, jmethodID me
   }
 #endif
 
-  // Call java agent register_callback
-  std::string client_name = GetClientName();
-  if (client_name.compare(DATA_CENTRIC_CLIENT_NAME) == 0 || client_name.compare(NUMANODE_CLIENT_NAME) == 0) {
-    if (jni_flag) {
-      JNIEnv* _jni = JVM::jni();
-      jclass myClass = NULL;
-      jmethodID main = NULL;
-      jmethodID main_gc = NULL;
-
-      myClass = _jni->FindClass("com/google/monitoring/runtime/instrumentation/AllocationInstrumenter");
-      main = _jni->GetStaticMethodID(myClass, "register_callback", "([Ljava/lang/String;)V");
-      _jni->CallStaticVoidMethod(myClass, main, " ");
-      jni_flag = false;
-    }
-  }
-
   CompiledMethod *m = Profiler::getProfiler().getCodeCacheManager().addMethodAndRemoveFromUncompiledSet(method, code_size, code_addr, map_length, map);
   // CompiledMethod *m = Profiler::getProfiler().getCodeCacheManager().addMethod(method, code_size, code_addr, map_length, map);
   // Profiler::getProfiler().getUnCompiledMethodCache().removeMethod(method);
@@ -269,41 +178,6 @@ static void JNICALL callbackCompiledMethodUnload(jvmtiEnv *jvmti_env, jmethodID 
     BLOCK_SAMPLE;
     Profiler::getProfiler().getCodeCacheManager().removeMethod(method, code_addr);
     UNBLOCK_SAMPLE;
-}
-
-static void JNICALL callbackGCRelocationReclaim(jvmtiEnv *jvmti_env, const char* new_addr, const void* old_addr, jint length) {
-  if (splay_tree_root != NULL) {
-    void* startaddress;
-    interval_tree_node *del_tree;
-    int flag = length;
-    // handle GC relocation
-    if (flag != 0) {
-      void* new_startingAddr = (void*)new_addr;
-      void* old_startingAddr = (void*)old_addr;
-      uint64_t size = length;
-      uint64_t endingAddr = (uint64_t)new_startingAddr + size;
-
-      tree_lock.lock();
-      interval_tree_node *p = SplayTree::interval_tree_lookup(&splay_tree_root, old_startingAddr, &startaddress);
-      if (p != NULL) {
-        Context *ctxt = p->node_ctxt;
-        SplayTree::interval_tree_delete(&splay_tree_root, &del_tree, p);
-        interval_tree_node *node = SplayTree::node_make(new_startingAddr, (void*)endingAddr, ctxt);
-        SplayTree::interval_tree_insert(&splay_tree_root, node);
-      }
-      tree_lock.unlock();
-    }
-    // handle GC reclaim
-    else {
-      void* old_startingAddr = (void*)old_addr;
-      tree_lock.lock();
-      interval_tree_node *p = SplayTree::interval_tree_lookup(&splay_tree_root, old_startingAddr, &startaddress);
-      if (p != NULL) {
-        SplayTree::interval_tree_delete(&splay_tree_root, &del_tree, p);  
-      }
-      tree_lock.unlock();
-    }
-  }
 }
 
 // This has to be here, or the VM turns off class loading events.
@@ -327,30 +201,12 @@ static void JNICALL callbackClassPrepare(jvmtiEnv* jvmti, JNIEnv* jni, jthread t
     // UNBLOCK_SAMPLE;
 }
 
-void JVM::loadMethodIDs(jvmtiEnv* jvmti, jclass klass) {
-    jint method_count;
-    jmethodID* methods;
-    if (jvmti->GetClassMethods(klass, &method_count, &methods) == 0) {
-        jvmti->Deallocate((unsigned char*)methods);
-    }
-}
-
-void JVM::loadAllMethodIDs(jvmtiEnv* jvmti) {
-    jint class_count;
-    jclass* classes;
-    if (jvmti->GetLoadedClasses(&class_count, &classes) == 0) {
-        for (int i = 0; i < class_count; i++) {
-            loadMethodIDs(jvmti, classes[i]);
-        }
-        jvmti->Deallocate((unsigned char*)classes);
-    }
-}
 
 
 /////////////
 // METHODS //
 /////////////
-bool JVM::init(JavaVM *jvm, const char *arg, bool attach) {
+bool JVM::init(JavaVM *jvm, const char *arg) {
   jvmtiError error;
   jint res;
   jvmtiEventCallbacks callbacks;
@@ -378,33 +234,25 @@ bool JVM::init(JavaVM *jvm, const char *arg, bool attach) {
     assert(location_format == JVMTI_JLOCATION_JVMBCI);//currently only support this implementation
   }
 
-  Profiler::getProfiler().init();
 
   /////////////////////
   // Init capabilities:
   jvmtiCapabilities capa;
-  memset(&capa, '\0', sizeof(jvmtiCapabilities)); 
-  capa.can_generate_all_class_hook_events = 1;
+  memset(&capa, '\0', sizeof(jvmtiCapabilities));
+  // capa.can_generate_all_class_hook_events = 1;
 
   capa.can_generate_garbage_collection_events = 1;
   capa.can_get_source_file_name = 1; 
   capa.can_get_line_numbers = 1; 
-  // capa.can_generate_method_entry_events = 1; // This one must be enabled in order to get the stack trace
+  capa.can_generate_method_entry_events = 1; // This one must be enabled in order to get the stack trace
   capa.can_generate_compiled_method_load_events = 1;
-  
-  capa.can_retransform_classes = 1;
-  capa.can_retransform_any_class = 1;
-  capa.can_get_bytecodes = 1;
-  capa.can_get_constant_pool = 1;
-  capa.can_generate_monitor_events = 1;
-  capa.can_tag_objects = 1;
-  capa.can_generate_sampled_object_alloc_events = 1;
 
   error = _jvmti->AddCapabilities(&capa);
   check_jvmti_error(error, "Unable to get necessary JVMTI capabilities.");
 
+//////////////////
+// Init callbacks:
   memset(&callbacks, 0, sizeof(callbacks));
-  callbacks.SampledObjectAlloc = &SampledObjectAlloc;
   callbacks.VMInit = &callbackVMInit;
   callbacks.VMDeath = &callbackVMDeath;
   callbacks.ThreadStart = &callbackThreadStart;
@@ -417,14 +265,9 @@ bool JVM::init(JavaVM *jvm, const char *arg, bool attach) {
 
   error = _jvmti->SetEventCallbacks(&callbacks, (jint)sizeof(callbacks));
   check_jvmti_error(error, "Cannot set jvmti callbacks");
-
-  error = _jvmti->SetHeapSamplingInterval(1024 * 1024);
-  check_jvmti_error(error, "Cannot set interval");
-
+  
   ///////////////
   // Init events:
-  error = _jvmti->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_SAMPLED_OBJECT_ALLOC, NULL);
-  check_jvmti_error(error, "Cannot set event notification");
   error = _jvmti->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_VM_INIT, (jthread)NULL);
   check_jvmti_error(error, "Cannot set event notification");
   error = _jvmti->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_VM_DEATH, (jthread)NULL);
@@ -446,11 +289,7 @@ bool JVM::init(JavaVM *jvm, const char *arg, bool attach) {
   error = _jvmti->SetEventNotificationMode(JVMTI_ENABLE, JVMTI_EVENT_CLASS_PREPARE, (jthread)NULL);
   check_jvmti_error(error, "Cannot set event notification");
 
-  if (attach) {
-    loadAllMethodIDs(_jvmti);
-    _jvmti->GenerateEvents(JVMTI_EVENT_DYNAMIC_CODE_GENERATED);
-    _jvmti->GenerateEvents(JVMTI_EVENT_COMPILED_METHOD_LOAD);
-  }
+  Profiler::getProfiler().init();
 
   return true;
 }
@@ -473,10 +312,8 @@ JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved) 
   // bool pause = true; while(pause);
 
   BLOCK_SAMPLE;
-  onload_flag = true;
-  jni_flag = false;
   INFO("Agent argument = %s\n", options);
-  if (!JVM::init(jvm, options, false)) {
+  if (!JVM::init(jvm, options)) {
     UNBLOCK_SAMPLE;
     return JNI_ERR;
   }
@@ -487,33 +324,11 @@ JNIEXPORT jint JNICALL Agent_OnLoad(JavaVM *jvm, char *options, void *reserved) 
 }
 
 /**
-* Agent entry point
-*/
-JNIEXPORT jint JNICALL Agent_OnAttach(JavaVM *jvm, char *options, void *reserved) {
-  BLOCK_SAMPLE;
-  onload_flag = false;
-  jni_flag = true;
-  if(options[strlen(options)-1] == 's') {
-    printf("profiler start\n");
-    options[strlen(options)-1] = '\0';
-    JVM::init(jvm, options, true);
-  }
-  else {
-    printf("profiler end\n");
-    JVM::shutdown();
-  }
-  UNBLOCK_SAMPLE;
-  return 0;
-}
-
-/**
 * Agent exit point. Last code executed.
 */
 JNIEXPORT void JNICALL Agent_OnUnload(JavaVM *vm) {
   BLOCK_SAMPLE;
-  if (onload_flag) {
-    JVM::shutdown();
-    INFO("Agent_OnUnload\n");
-  }
+  JVM::shutdown();
+  INFO("Agent_OnUnload\n");
   UNBLOCK_SAMPLE;
 }

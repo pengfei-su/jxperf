@@ -2,7 +2,3 @@
 #include <dlfcn.h>
 #include <assert.h>
 #include "stacktraces.h"
-
-
-
-

@@ -18,7 +18,6 @@ public:
 
 // fields
    uint64_t binary_addr = 0;
-   int numa_node = 10; 
 
    jmethodID method_id = 0;
    std::string method_name;
@@ -59,7 +58,6 @@ private:
     return a->_frame.bci == b->_frame.bci &&
       a->_frame.method_id == b->_frame.method_id &&
       a->_frame.binary_addr == b->_frame.binary_addr &&
-      a->_frame.numa_node == b->_frame.numa_node &&
       a->_frame.method_version == b->_frame.method_version;
   }
 

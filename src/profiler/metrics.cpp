@@ -27,6 +27,13 @@ bool ContextMetrics::increment(int metric_idx, const metric_val_t &val){
     return true;
 }
 
+bool ContextMetrics::setMetricVal(int metric_idx, const metric_val_t &val) {
+    metric_val_t *tmp_val = getMetricVal(metric_idx);
+    if (tmp_val == nullptr) return false;
+    (*tmp_val) = val; 
+    return true;
+}
+
 metric_val_t *ContextMetrics::getMetricVal(int metric_idx) {
     if (metric_idx < 0 or metric_idx >= MetricInfoManager::getNumMetrics()){
         return nullptr;
@@ -47,14 +54,14 @@ XMLObj *createXMLObj(ContextMetrics * instance) {
     std::ostringstream os;
     XMLObj *obj = new(std::nothrow) XMLObj("metrics");   
     assert(obj);
-    bool isLargeRedundancy = false;
+    // bool isLargeRedundancy = false;
 
 #define SET_ATTR(xmlobj, key, value) os.str(""); os << value; xmlobj->addAttr(key, os.str());
     for (uint32_t i = 0; i < instance->_val_list.size(); i++) {
         metric_val_t &metric_val = (instance->_val_list)[i];
         
-        /*int min_red_byte = MetricInfoManager::getMetricInfo(i)->threshold * 10;
-        if (metric_val.i >= min_red_byte || metric_val.r >= min_red_byte)*/ isLargeRedundancy = true;
+        // int min_red_byte = MetricInfoManager::getMetricInfo(i)->threshold * 10;
+        // if (metric_val.i >= min_red_byte || metric_val.r >= min_red_byte) isLargeRedundancy = true;
         
         XMLObj *child_obj = new(std::nothrow) XMLObj("metric");
         assert(child_obj);
@@ -74,10 +81,13 @@ XMLObj *createXMLObj(ContextMetrics * instance) {
     }
 #undef SET_ATTR
 
+    /*
     if (!isLargeRedundancy) {
         delete obj;
         obj = nullptr;
     }
+    */
+
     return obj;
 }
 

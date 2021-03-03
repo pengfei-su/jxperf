@@ -24,8 +24,8 @@ typedef struct BlackListAddressRange {
 static BlackListAddressRange_t blackListAddresses[MAX_BLACK_LIST_ADDRESS];
 static uint16_t numBlackListAddresses = 0;
 
-static const char *blackListedModules[] = {"libpfm.so", "libxed.so", "libxed-ild.so", "libpreload.so", "libagent.so", "libstdc++.so", "libjvm.so", "libc", "anon_inode:[perf_event]"};
-static const int numblackListedModules = 9;
+static const char *blackListedModules[] = {"libpfm.so", "libxed.so", "libxed-ild.so", "libpreload.so", "libkissmalloc.so", "libagent.so", "libstdc++.so", "libjvm.so", "libc", "anon_inode:[perf_event]"};
+static const int numblackListedModules = 10;
 
 // static const char *blackListedModules[] = {"libpfm.so", "libxed.so", "libxed-ild.so", "libpreload.so", "libagent.so", "anon_inode:[perf_event]"};
 // static const int numblackListedModules = 6;
@@ -93,93 +93,6 @@ double ProportionOfWatchpointAmongOthersSharingTheSameContext(WP_TriggerInfo_t *
 #endif
 }
 */
-
-int curWatermarkId = 0;
-int pebs_metric_id[NUM_WATERMARK_METRICS] = {-1, -1, -1, -1};
-
-// Actually, only one watchpoint client can be active at a time 
-void SetupWatermarkMetric(int metricId) {
-    if (curWatermarkId == NUM_WATERMARK_METRICS) {
-        ERROR("curWatermarkId == NUM_WATERMARK_METRICS = %d", NUM_WATERMARK_METRICS);
-        assert(false);
-    }
-    /* 
-    std::unordered_map<Context *, SampleNum> * propAttrTable = reinterpret_cast<std::unordered_map<Context *, SampleNum> *> (TD_GET(prop_attr_state)[curWatermarkId]);
-    if (propAttrTable == nullptr) {
-        propAttrTable = new(std::nothrow) std::unordered_map<Context *, SampleNum>();
-        assert(propAttrTable);
-        TD_GET(ctxt_sample_state)[curWatermarkId] = propAttrTable;
-    } 
-    */
-    pebs_metric_id[curWatermarkId] = metricId;
-    curWatermarkId++;
-}
-
-
-int GetMatchingCtxtSampleTableId(int pebsMetricId) {
-    for (int i=0; i<NUM_WATERMARK_METRICS; i++) {
-        if(pebs_metric_id[i] == pebsMetricId) return i;
-    }
-    assert(false);
-}
-
-
-void UpdateNumSamples(Context *ctxt, int pebsMetricId) {
-    assert(ctxt);
-    int ctxtSampleTableId = GetMatchingCtxtSampleTableId(pebsMetricId);
-    std::unordered_map<Context *, SampleNum> *ctxtSampleTable = reinterpret_cast<std::unordered_map<Context *, SampleNum> *>(TD_GET(ctxt_sample_state)[ctxtSampleTableId]);
-    if (ctxtSampleTable == nullptr) {
-        ctxtSampleTable = new(std::nothrow) std::unordered_map<Context *, SampleNum>();
-        assert(ctxtSampleTable);
-        TD_GET(ctxt_sample_state)[ctxtSampleTableId] = ctxtSampleTable;
-    } 
-    
-    std::unordered_map<Context *, SampleNum> &myCtxtSampleTable = *ctxtSampleTable;
-    if (myCtxtSampleTable.find(ctxt) == myCtxtSampleTable.end()) myCtxtSampleTable[ctxt] = {0, 1};
-    else { 
-        myCtxtSampleTable[ctxt].cur_num++; 
-    } 
-}
-
-
-uint64_t GetNumDiffSamplesAndReset(Context *ctxt, int pebsMetricId, double prop, uint32_t threshold) {
-    assert(ctxt);
-    int ctxtSampleTableId = GetMatchingCtxtSampleTableId(pebsMetricId);
-    std::unordered_map<Context *, SampleNum> *ctxtSampleTable = reinterpret_cast<std::unordered_map<Context *, SampleNum> *>((TD_GET(ctxt_sample_state))[ctxtSampleTableId]);
-    assert(ctxtSampleTable);
-    /*
-    if (ctxtSampleTable == nullptr) {
-        ctxtSampleTable = new(std::nothrow) std::unordered_map<Context *, SampleNum>();
-        assert(ctxtSampleTable);
-        TD_GET(ctxt_sample_state)[ctxtSampleTableId] = ctxtSampleTable;
-    } 
-    */
-    std::unordered_map<Context *, SampleNum> &myCtxtSampleTable = *ctxtSampleTable;
-    
-    double diff = 0., diffWithPeriod = 0.;
-    // assert(myCtxtSampleTable.find(ctxt) != myCtxtSampleTable.end());
-    diff = (myCtxtSampleTable[ctxt].cur_num - myCtxtSampleTable[ctxt].catchup_num) * prop;
-    diffWithPeriod = diff * threshold;
-    myCtxtSampleTable[ctxt].catchup_num = myCtxtSampleTable[ctxt].cur_num;
-
-    return (uint64_t)diffWithPeriod;
-}
-
-
-std::string GetClientName() {
-    int metricId = -1;
-    for (int i = 0; i < NUM_WATERMARK_METRICS; i++) {
-        if(pebs_metric_id[i] != -1) {
-            metricId = pebs_metric_id[i];
-            break;
-        }
-    }
-    assert(metricId != -1);
-    metrics::metric_info_t * metric_info = metrics::MetricInfoManager::getMetricInfo(metricId);
-    assert(metric_info);
-    return metric_info->client_name;
-}
-
 
 void PopulateBlackListAddresses() {
     LockScope<SpinLock> lock_scope(&lock);

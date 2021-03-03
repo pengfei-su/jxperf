@@ -16,8 +16,8 @@ typedef struct thread_data_t {
 #ifndef COUNT_OVERHEAD
     void *output_state;
 #endif
-    void *ctxt_sample_state[4]; // only have 4 debug registers
-#ifdef PRINT_PMU_INS
+    // void *ctxt_sample_state[4]; // only have 4 debug registers
+#if defined(PRINT_SAMPLED_INS) || defined(PRINT_TRAPPED_INS)
     void *pmu_ins_output_stream;
 #endif
 } thread_data_t;
@@ -29,7 +29,7 @@ thread_data_t *thread_data_alloc();
 
 thread_data_t *thread_data_get();
 
-void thread_data_dealloc(std::string clientName);
+void thread_data_dealloc();
 
 void thread_data_shutdown();
 

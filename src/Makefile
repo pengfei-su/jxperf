@@ -23,8 +23,7 @@ DEPS := $(OBJS_PATH:.o=.d)
 INC_DIRS += $(shell find $(SRC_DIRS) -type d)
 INC_FLAGS := $(addprefix -I,$(INC_DIRS))
 
-
-COMMON_FLAGS += -Wall -DUSE_BOOST_UNORDERED_CONTAINER -DENABLE_CALL_PATH_COLLECTION 
+COMMON_FLAGS += -g -Wall -DUSE_BOOST_UNORDERED_CONTAINER -DENABLE_CALL_PATH_COLLECTION #-DDEBUG #-DPRINT_TRAPPED_INS 
 
 CFLAGS += $(COMMON_FLAGS) $(INC_FLAGS) 
 CXXFLAGS += $(COMMON_FLAGS) $(INC_FLAGS) -std=c++11
@@ -32,7 +31,7 @@ CXXFLAGS += $(COMMON_FLAGS) $(INC_FLAGS) -std=c++11
 all: $(BUILD_DIR)/libagent.so 
 
 $(BUILD_DIR)/libagent.so: $(OBJS_PATH) $(BUILD_DIR)/libhpctoolkit.a 
-	$(LD) -Wl,--whole-archive $(BUILD_DIR)/libhpctoolkit.a -Wl,-no-whole-archive -shared -m64  -Wl,-soname,libagent.so -o $@ $(OBJS_PATH) -Wl,-rpath=$(BUILD_DIR)/thirdparty/lib -L$(BUILD_DIR)/thirdparty/lib -lwatchpoint -lxed -lc -lpfm -ldl -lnuma -L$(JXPerf_HOME)/bin/kissmalloc -lkissmalloc -L$(BUILD_DIR)/preload -lpreload
+	$(LD) -Wl,--whole-archive $(BUILD_DIR)/libhpctoolkit.a -Wl,-no-whole-archive -shared -m64  -Wl,-soname,libagent.so -o $@ $(OBJS_PATH) -Wl,-rpath=$(BUILD_DIR)/thirdparty/lib -L$(BUILD_DIR)/thirdparty/lib -lwatchpoint -lxed -lc -lpfm -ldl -lkissmalloc
 
 $(BUILD_DIR)/libhpctoolkit.a:
 	$(MAKE) -C external
