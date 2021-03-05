@@ -122,13 +122,13 @@ class ContextManager:
 		else:
 			return [[root]]
 
-
+	'''Accumulate leaf nodes' values to their ancestors'''
 	def populateMetrics(self):
 		def _getMetrics(subtree_root):
 			if len(subtree_root.getChildrenIDs()) == 0:
 				for k in subtree_root.metrics_dict:
-#					subtree_root.metrics_dict[k] = float(subtree_root.metrics_dict[k])
-					subtree_root.metrics_dict[k] = int(subtree_root.metrics_dict[k])
+					subtree_root.metrics_dict[k] = float(subtree_root.metrics_dict[k])
+					#subtree_root.metrics_dict[k] = int(subtree_root.metrics_dict[k])
 				return subtree_root.metrics_dict
 			subtree_root.metrics_dict = dict()
 			for c_id in subtree_root.getChildrenIDs():
