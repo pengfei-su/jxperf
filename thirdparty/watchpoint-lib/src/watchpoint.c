@@ -147,7 +147,8 @@ static void CreateWatchPoint(WP_RegisterInfo_t *wpi, SampleData_t * sampleData, 
     switch (sampleData->watchType) {
         case WP_READ: pe.bp_type = HW_BREAKPOINT_R; break;
         case WP_WRITE: pe.bp_type = HW_BREAKPOINT_W; break;
-        default: pe.bp_type = HW_BREAKPOINT_W | HW_BREAKPOINT_R;
+	case WP_EXEC: pe.bp_type = HW_BREAKPOINT_X; pe.bp_len = sizeof(long); break; // have to be sizeof(long)
+        default: pe.bp_type = HW_BREAKPOINT_RW;
     }
 
 #if defined(FAST_BP_IOC_FLAG)
@@ -157,9 +158,9 @@ static void CreateWatchPoint(WP_RegisterInfo_t *wpi, SampleData_t * sampleData, 
         assert(wpi->mmapBuffer != 0);
         // DisableWatchpoint(wpi);
         CHECK(ioctl(wpi->fileHandle, FAST_BP_IOC_FLAG, (unsigned long) (&pe)));
-        if (!wpi->isActive) {
-	    EnableWatchpoint(wpi->fileHandle);
-	}
+        // if (!wpi->isActive) {
+	//    EnableWatchpoint(wpi->fileHandle);
+	// }
     } else
 #endif
     {
@@ -377,7 +378,7 @@ static void OnWatchPoint(int signum, siginfo_t *info, void *uCtxt) {
     	}
     }
    
-    // Let the client take action 
+    // Let the client take action
     switch (retVal) {
         case WP_DISABLE: {
 	    DisableWatchpointWrapper(wpi);
@@ -386,6 +387,7 @@ static void OnWatchPoint(int signum, siginfo_t *info, void *uCtxt) {
 	    if (!isEmptyStack(&wpStack)) {
              	SampleData_t sd;
                 pop(&wpStack, &sd);
+	     	// printf("pop: %llx\n", (long long)sd.va);
                 ArmWatchPoint(wpi, &sd);
             }
 
@@ -406,6 +408,7 @@ static void OnWatchPoint(int signum, siginfo_t *info, void *uCtxt) {
 	    if (!isEmptyStack(&wpStack)) {
              	SampleData_t sd;
                 pop(&wpStack, &sd);
+	     	// printf("pop: %llx\n", (long long)sd.va);
                 ArmWatchPoint(wpi, &sd);
             }
         }
@@ -617,7 +620,7 @@ void WP_ThreadTerminate(){
 }
 
 bool WP_Subscribe(SampleData_t *sampleData, bool isCaptureValue, bool isVarianceClient) {
-    if(ValidateWPData(sampleData) == false) {
+    if(/* !isVarianceClient && */ValidateWPData(sampleData) == false) {
         return false;
     }
     if(IsOverlapped(sampleData)) {
@@ -634,6 +637,7 @@ bool WP_Subscribe(SampleData_t *sampleData, bool isCaptureValue, bool isVariance
         }
 	if (isVarianceClient && (r == WP_VICTIM_NON_EMPTY_SLOT)) {
              push(&wpStack, &(tData->watchPointArray[victimLocation].sd));
+	     // printf("push: %llx\n", (long long)tData->watchPointArray[victimLocation].sd.va);
          }
 
         if(ArmWatchPoint(&(tData->watchPointArray[victimLocation]), sampleData) == false) {

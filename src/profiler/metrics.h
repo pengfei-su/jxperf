@@ -14,7 +14,8 @@ typedef enum {
 
 typedef struct {
     std::string client_name;
-    std::string name;
+    std::string event_name;
+    std::string event_measure;
     uint32_t threshold = 0;
     metric_val_enum_t val_type = METRIC_VAL_INT;
 } metric_info_t;

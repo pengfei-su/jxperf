@@ -66,17 +66,18 @@ XMLObj *createXMLObj(ContextMetrics * instance) {
         XMLObj *child_obj = new(std::nothrow) XMLObj("metric");
         assert(child_obj);
         SET_ATTR(child_obj, "id", i);
-
+	
+	std::string value_id = "value"/* + std::to_string(i)*/;
         if (metric_val.i) {
-            SET_ATTR(child_obj, "value1", metric_val.i);
-            // assert(child_obj->hasAttr("type", "FP") == false);
-            // SET_ATTR(child_obj, "type1", "PRECISE");
+            SET_ATTR(child_obj, value_id, metric_val.i);
         }   
         if (metric_val.r) {
-            SET_ATTR(child_obj, "value2", metric_val.r);
-            // assert(child_obj->hasAttr("type", "INT") == false);
-            // SET_ATTR(child_obj, "type2", "APPROXIMATE");
+            SET_ATTR(child_obj, value_id, metric_val.r);
         }
+        // SET_ATTR(child_obj, "event", MetricInfoManager::getMetricInfo(i)->event_name + ":" + MetricInfoManager::getMetricInfo(i)->event_metric);
+        SET_ATTR(child_obj, "measure", MetricInfoManager::getMetricInfo(i)->event_measure);
+        SET_ATTR(child_obj, "event", MetricInfoManager::getMetricInfo(i)->event_name);
+
         obj->addChild(i, child_obj);
     }
 #undef SET_ATTR

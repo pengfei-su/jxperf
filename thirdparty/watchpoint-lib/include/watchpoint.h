@@ -9,7 +9,7 @@
 /* ================================================================== */
 // Debug register data types and structures
 /* ================================================================== */
-typedef enum WP_Access_t {WP_READ, WP_WRITE, WP_RW, WP_INVALID} WP_Access_t;
+typedef enum WP_Access_t {WP_READ, WP_WRITE, WP_RW, WP_EXEC, WP_INVALID} WP_Access_t;
 typedef enum WP_ReplacementPolicy_t {WP_REPLACEMENT_AUTO, WP_REPLACEMENT_EMPTY_SLOT, WP_REPLACEMENT_OLDEST, WP_REPLACEMENT_NEWEST} WP_ReplacementPolicy_t;
 typedef enum WP_TriggerAction_t {WP_DISABLE, WP_ALREADY_DISABLED, WP_DISABLE_ALL, WP_RETAIN} WP_TriggerAction_t;
 
@@ -18,14 +18,7 @@ typedef struct SampleData {
     int watchLen;
     WP_Access_t watchType;
     int accessLen;
-    void *watchCtxt;
-    /*
-    int metric_sample_cnt_id;
-    int metric_mean_id;
-    int metric_variance_id;
-    int metric_m2_id;
-    int metric_cv_id;
-    */
+    void *calleeCtxtFrame;
 }SampleData_t;
 
 // Data structure that is captured when a WP triggers

@@ -61,14 +61,14 @@ bool OUTPUT::setFileName(char *file_name) {
 }
 
 int OUTPUT::writef(const char *fmt, ...) {
-  #define LOCAL_BUFFER_SIZE 1024
+  #define LOCAL_BUFFER_SIZE 2048
   va_list arg;
   char local_buf[LOCAL_BUFFER_SIZE];
 
   va_start(arg, fmt);
   int data_size = vsnprintf(local_buf, LOCAL_BUFFER_SIZE, fmt, arg);
   va_end(arg);
-  assert(data_size >= 0 && data_size < LOCAL_BUFFER_SIZE );
+  assert(data_size >= 0 && data_size < LOCAL_BUFFER_SIZE);
 
   return writeb(local_buf);
 }
