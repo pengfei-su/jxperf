@@ -36,7 +36,7 @@ static void linux_perf_events_resume() {
 }
 
 
-/**********     WP setting     **********/
+/***************WP setting***************/
 static bool ValidateWPData(SampleData_t *sampleData) {
     // Check alignment
 #if defined(__x86_64__) || defined(__amd64__) || defined(__x86_64) || defined(__amd64)
@@ -351,6 +351,7 @@ static void OnWatchPoint(int signum, siginfo_t *info, void *uCtxt) {
 	// if no existing WP is matched, just ignore and return
         // EMSG("\n thread %d WP trigger did not match any known active WP\n", gettid());
         // tData->insideSigHandler = false;
+    	linux_perf_events_resume();
         return;
     }
 
@@ -650,9 +651,11 @@ bool WP_Subscribe(SampleData_t *sampleData, bool isCaptureValue, bool isVariance
 }
 
 
-void WP_SetPerfPauseAndResumeFunctions(WP_PerfCallback_t pause_fn,  WP_PerfCallback_t resume_fn){
+bool WP_SetPerfPauseAndResumeFunctions(WP_PerfCallback_t pause_fn, WP_PerfCallback_t resume_fn) {
     wpConfig.userPerfPause = pause_fn;
     wpConfig.userPerfResume = resume_fn;
+    if (pause_fn && resume_fn) return true;
+    return false; 
 }
 
 void WP_GetActiveAddresses(void *addrs[/*MAX_WP_SLOT*/], int *numAddr) {

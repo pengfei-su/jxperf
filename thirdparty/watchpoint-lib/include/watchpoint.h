@@ -33,7 +33,7 @@ typedef struct WP_TriggerInfo_t{
 } WP_TriggerInfo_t;
 
 typedef WP_TriggerAction_t (*WP_TrapCallback_t)( WP_TriggerInfo_t *);
-typedef void (*WP_PerfCallback_t) ();
+typedef bool (*WP_PerfCallback_t) ();
 
 #ifdef __cplusplus
 extern "C"
@@ -51,11 +51,10 @@ extern void WP_GetActiveWatchPoints(WP_TriggerInfo_t wpt[], int *numActiveWP);
 extern bool WP_IsAltStackAddress(void *addr);
 extern bool WP_IsFSorGS(void * addr);
 extern bool WP_IsInsideSigHandler();
+//If you are using perf events in your own system, you may want to pause all your perf events just after a watchpoint is captured and resume all your perf events just before finishing handling a trap.
+extern bool WP_SetPerfPauseAndResumeFunctions(WP_PerfCallback_t pause_fn, WP_PerfCallback_t resume_fn);
 
 //*****************************Advanced Configuration********************//
-//If you are using perf events in your own system, you may want to pause all your perf events just after a watchpoint is captured and resume all your perf events just before finishing handling a trap.
-extern void WP_SetPerfPauseAndResumeFunctions(WP_PerfCallback_t pause_fn,  WP_PerfCallback_t resume_fn);
-
 extern void WP_DisableAllWatchPoints();
 
 #ifdef __cplusplus

@@ -46,7 +46,7 @@ void thread_data_dealloc() {
 #ifndef COUNT_OVERHEAD 
         assert(td_ptr->output_state == nullptr);
 #endif
-#if defined(PRINT_SAMPLED_INS) || defined(PRINT_TRAPPED_INS)
+#if defined(PRINT_SAMPLED_INS) || defined(PRINT_TRAPPED_INS) || defined(PLOT_VARIANCE)
         assert(td_ptr->pmu_ins_output_stream == nullptr);
 #endif
         // for (int i =0; i < 4; i++) assert(td_ptr->ctxt_sample_state[i] == nullptr);

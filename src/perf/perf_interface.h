@@ -38,6 +38,9 @@ public:
   static bool setupEvents();
   static bool closeEvents();
   
+  static bool perf_start_all_wrapper();
+  static bool perf_stop_all_wrapper();
+  
   static bool readCounter(int event_idx, uint64_t *val);
 };
 #endif

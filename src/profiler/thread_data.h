@@ -17,7 +17,7 @@ typedef struct thread_data_t {
     void *output_state;
 #endif
     // void *ctxt_sample_state[4]; // only have 4 debug registers
-#if defined(PRINT_SAMPLED_INS) || defined(PRINT_TRAPPED_INS)
+#if defined(PRINT_SAMPLED_INS) || defined(PRINT_TRAPPED_INS) || defined(PLOT_VARIANCE)
     void *pmu_ins_output_stream;
 #endif
 } thread_data_t;

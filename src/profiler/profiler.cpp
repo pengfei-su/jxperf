@@ -171,6 +171,9 @@ void Profiler::OnSample(int eventID, perf_sample_data_t *sampleData, void *uCtxt
     
     CompiledMethod *method = code_cache_manager.getMethod(sampleData->ip, method_id, method_version);
     if (method == nullptr) return;
+    // if (method->getMethodName().compare("indexOf") != 0) return;
+    if (method->getMethodName().compare("equals") != 0) return;
+    // if (method->getMethodName().compare("foo2") != 0) return;
 
 #ifdef PRINT_SAMPLED_INS
      std::ofstream *pmu_ins_output_stream = reinterpret_cast<std::ofstream *>(TD_GET(pmu_ins_output_stream));
@@ -267,6 +270,9 @@ WP_TriggerAction_t Profiler::OnRetWatchPoint(WP_TriggerInfo_t *wpt) {
     assert(metrics->increment(sample_cnt_metric_id, metric_val));
     uint64_t sample_cnt = metrics->getMetricVal(sample_cnt_metric_id)->i;
    
+#if defined(PRINT_TRAPPED_INS) || defined(PLOT_VARIANCE)
+    std::ofstream *pmu_ins_output_stream = reinterpret_cast<std::ofstream *>(TD_GET(pmu_ins_output_stream));
+#endif
     assert(curEventId == curWatermarkId);
     for (int i = 1; i < curWatermarkId; i++) {
     	uint64_t temp;
@@ -289,14 +295,23 @@ WP_TriggerAction_t Profiler::OnRetWatchPoint(WP_TriggerInfo_t *wpt) {
     	metric_val.r = cv;
     	assert(metrics->setMetricVal(cv_metric_id[i], metric_val));
 	// std::cout<< new_value << " " << sample_cnt << " " << mean << " " << variance << " " << m2 << " " << cv << std::endl;
-    }    
 
+#ifdef PLOT_VARIANCE
+    	// if (method->getMethodName().compare("main") == 0)
+	    *pmu_ins_output_stream << new_value << " ";
+#endif
+    }    
+#ifdef PLOT_VARIANCE
+    *pmu_ins_output_stream << std::endl;
+#endif
+
+    
 #ifdef PRINT_TRAPPED_INS
     std::ofstream *pmu_ins_output_stream = reinterpret_cast<std::ofstream *>(TD_GET(pmu_ins_output_stream));
     assert(pmu_ins_output_stream != nullptr); 
     print_single_instruction(pmu_ins_output_stream, wpt->pc);
 #endif
-    
+ 
     profiler_safe_exit();
     return WP_DISABLE;
 }
@@ -340,6 +355,7 @@ std::fill_n (cv_metric_id, MAX_EVENTS, -1);
     
     assert(PerfManager::processInit(JVM::getArgument()->getPerfEventList(), Profiler::OnSample));
     assert(WP_Init());
+    assert(WP_SetPerfPauseAndResumeFunctions(PerfManager::perf_stop_all_wrapper, PerfManager::perf_start_all_wrapper));
     // std::string client_name = GetClientName();
     // std::transform(client_name.begin(), client_name.end(), std::back_inserter(clientName), ::toupper);
 }
@@ -378,7 +394,7 @@ void Profiler::threadStart() {
         output_stream->writef("%s\n", XML_FILE_HEADER);
         TD_GET(output_state) = reinterpret_cast<void *> (output_stream);
 #endif
-#if defined(PRINT_SAMPLED_INS) || defined(PRINT_TRAPPED_INS)
+#if defined(PRINT_SAMPLED_INS) || defined(PRINT_TRAPPED_INS) || defined(PLOT_VARIANCE)
         std::ofstream *pmu_ins_output_stream = new(std::nothrow) std::ofstream();
         char file_name[128];
         snprintf(file_name, 128, "pmu-instruction-%u", TD_GET(tid));
@@ -393,6 +409,7 @@ void Profiler::threadStart() {
         assert(false);
     }*/
     PopulateBlackListAddresses();
+    // assert(WP_SetPerfPauseAndResumeFunctions(PerfManager::perf_start_all, PerfManager::perf_start_all));
     PerfManager::setupEvents();
 }
 
@@ -448,7 +465,7 @@ void Profiler::threadEnd() {
     delete ctxt_tree;
     TD_GET(context_state) = nullptr;
     
-#if defined(PRINT_SAMPLED_INS) || defined(PRINT_TRAPPED_INS)
+#if defined(PRINT_SAMPLED_INS) || defined(PRINT_TRAPPED_INS) || defined(PLOT_VARIANCE)
     std::ofstream *pmu_ins_output_stream = reinterpret_cast<std::ofstream *>(TD_GET(pmu_ins_output_stream));
     pmu_ins_output_stream->close();
     delete pmu_ins_output_stream;

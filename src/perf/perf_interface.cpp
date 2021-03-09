@@ -17,7 +17,6 @@
 #include <new>
 #include <fstream>
 #include <boost/algorithm/string.hpp>
-#include <iostream>
 
 #include "perf_interface.h"
 #include <perfmon/pfmlib_perf_event.h>
@@ -138,7 +137,7 @@ bool process_event_list(const std::vector<std::string> &event_list){
         if (current_event_info.threshold != 0) current_event_info.attr.precise_ip = precise_ip;
        
 	INFO("client name = %s event name = %s rate = %u\n", client_name.c_str(), current_event_info.name.c_str(),  current_event_info.threshold);
-	std::cout<< client_name << " " << current_event_info.name << " " << current_event_info.threshold << std::endl;
+	// std::cout<< client_name << " " << current_event_info.name << " " << current_event_info.threshold << std::endl;
 	
         // encode the event
         if (!perf_encode_event(current_event_info.name, &(current_event_info.attr))){
@@ -364,6 +363,18 @@ void perf_event_handler(int sig, siginfo_t* siginfo, void* context){
     return;
 }
 
+}
+
+bool PerfManager::perf_start_all_wrapper() {
+    std::vector<perf_event_thread_t> *event_thread_list = reinterpret_cast<std::vector<perf_event_thread_t> *> (TD_GET(perf_state));
+    assert(event_thread_list);
+    return perf_start_all(*event_thread_list);
+}
+
+bool PerfManager::perf_stop_all_wrapper() {
+    std::vector<perf_event_thread_t> *event_thread_list = reinterpret_cast<std::vector<perf_event_thread_t> *> (TD_GET(perf_state));
+    assert(event_thread_list);
+    return perf_stop_all(*event_thread_list);
 }
 
 
