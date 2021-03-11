@@ -347,11 +347,14 @@ static void OnWatchPoint(int signum, siginfo_t *info, void *uCtxt) {
         }
     }
 
-    if(location == -1) {
+    if (location == -1) {
 	// if no existing WP is matched, just ignore and return
         // EMSG("\n thread %d WP trigger did not match any known active WP\n", gettid());
         // tData->insideSigHandler = false;
     	linux_perf_events_resume();
+    	if (wpConfig.userPerfResume) {
+            wpConfig.userPerfResume();
+    	}
         return;
     }
 
