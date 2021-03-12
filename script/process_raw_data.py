@@ -2,8 +2,8 @@
 
 import os, sys
 from pylib import *
-from multiprocessing.dummy import Pool as ThreadPool
-from functools import partial
+import multiprocessing as mp
+#from functools import partial
 
 ##global variables
 isDataCentric = False
@@ -113,7 +113,6 @@ def load_context(context_root):
 			ctxt.metrics_type = "BR_INST_RETIRED.NEAR_CALL"
 
 		## add it to context manager
-		#print ctxt.metrics_dict
 		context_manager.addContext(ctxt)
 	roots = context_manager.getRoots()
 	print "remaining roots: ", str([r.id for r in roots])
@@ -124,10 +123,12 @@ def load_context(context_root):
 def output_to_file(method_manager, context_manager, dump_data):
 	intpr = interpreter.Interpreter(method_manager, context_manager)
 	accessed = dict()
+	ip = dict()
 	for ctxt_list in context_manager.getAllPaths("0", "root-leaf"):#"root-subnode"):
 	 	i = 0
 		while i < len(ctxt_list):
 			if ctxt_list[i].metrics_dict:
+				#print ctxt_list[i].metrics_dict
 				key = "\n".join(intpr.getSrcPosition(c) for c in ctxt_list[:(i+1)])
 				if not(accessed.has_key(key)):
 					accessed[key] = True
@@ -135,31 +136,53 @@ def output_to_file(method_manager, context_manager, dump_data):
 					dump_data[key] = ctxt_list[i].metrics_dict
 			i += 1
 
-def main():
-	file = open("agent-statistics.run", "r")
-	result = file.read().splitlines()
+def parallel1(tid, tid_file_dict):
+	root = xml.XMLObj("root")
+	if tid == "method":
+		level_one_node_tag = "method"
+	else:
+		level_one_node_tag = "context"
+
+	for f in tid_file_dict[tid]:
+		new_root = parse_input_file(f, level_one_node_tag)
+		root.addChildren(new_root.getChildren())
+	if len(root.getChildren()) > 0:
+		#xml_root_dict[tid] = root
+		return tid, root
+
+def parallel2(tid, xml_root_dict, method_manager):
+	if tid == "method":
+		return
+	print("Reconstructing contexts from TID " + tid)
+	xml_root = xml_root_dict[tid]
+	print("Dumping contexts from TID "+tid)
+	dump_data = dict()
+	output_to_file(method_manager, load_context(xml_root), dump_data)
+
+	file = open("agent-data-" + tid + ".out", "w")
+	rows = sorted(dump_data.items(), key=lambda x: (x[1]['BR_INST_RETIRED.NEAR_CALL:COUNT']), reverse = True)
+	for row in rows:
+		file.write(row[0] + "\n")
+		for col in row[1]:
+			file.write(col + " = " + str(row[1][col]) + " ")
+		file.write("\n\n")
+
 	file.close()
 
+
+def main():
 	### read all agent trace files
 	tid_file_dict = get_all_files(".")
-
+	#print tid_file_dict
 	### each file may have two kinds of information
 	# 1. context; 2. code
 	# the code information should be shared global while the context information is on a per-thread basis.
-	xml_root_dict = dict()
-	for tid in tid_file_dict:
-		root = xml.XMLObj("root")
-		if tid == "method":
-			level_one_node_tag = "method"
-		else:
-			level_one_node_tag = "context"
-
-		for f in tid_file_dict[tid]:
-			new_root = parse_input_file(f, level_one_node_tag)
-			root.addChildren(new_root.getChildren())
-		if len(root.getChildren()) > 0:
-			xml_root_dict[tid] = root
-
+	pool = mp.Pool(mp.cpu_count())
+	tmp = [pool.apply(parallel1, args=(tid, tid_file_dict)) for tid in tid_file_dict]
+	tmp = list(filter(None, tmp))
+	xml_root_dict = dict(tmp)
+	#print xml_root_dict	
+	
 	### reconstruct method
 	print("start to load methods")
 	method_root = xml_root_dict["method"]
@@ -168,26 +191,8 @@ def main():
 
 	print("Start to output")
 
-
-	for tid in xml_root_dict:
-		if tid == "method":
-			continue
-		print("Reconstructing contexts from TID " + tid)
-		xml_root = xml_root_dict[tid]
-		print("Dumping contexts from TID "+tid)
-		dump_data = dict()
-	 	output_to_file(method_manager, load_context(xml_root), dump_data)
-
-		file = open("agent-data-" + tid + ".out", "w")
-		#print dump_data
-		rows = sorted(dump_data.items(), key=lambda x: (x[1]['BR_INST_RETIRED.NEAR_CALL:COUNT']), reverse = True)
-		for row in rows:
-			file.write(row[0] + "\n")
-			for col in row[1]:
-				file.write(col + " = " + str(row[1][col]) + " ")
-			file.write("\n\n")
-
-		file.close()
+	[pool.apply(parallel2, args=(tid, xml_root_dict, method_manager)) for tid in xml_root_dict]
+	pool.close()
 
 	print("Final dumping")
 
