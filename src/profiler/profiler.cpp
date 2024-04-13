@@ -171,9 +171,6 @@ void Profiler::OnSample(int eventID, perf_sample_data_t *sampleData, void *uCtxt
     
     CompiledMethod *method = code_cache_manager.getMethod(sampleData->ip, method_id, method_version);
     if (method == nullptr) return;
-    // if (method->getMethodName().compare("indexOf") != 0) return;
-    if (method->getMethodName().compare("equals") != 0) return;
-    // if (method->getMethodName().compare("foo2") != 0) return;
 
 #ifdef PRINT_SAMPLED_INS
      std::ofstream *pmu_ins_output_stream = reinterpret_cast<std::ofstream *>(TD_GET(pmu_ins_output_stream));
